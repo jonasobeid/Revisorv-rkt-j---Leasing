@@ -1,79 +1,86 @@
 import streamlit as st
-
-import streamlit as st
 import pandas as pd
-import numpy as np
 from datetime import date
 
-st.set_page_config(page_title="Leasing Restværdi - Revisorværktøj", layout="wide")
+st.set_page_config(
+    page_title="Revisorværktøj - Leasing Restværdi",
+    layout="wide"
+)
 
-st.title("Leasing Restværdi – Revisorværktøj")
-st.caption("Prototype til vurdering af restværdi, leasingøkonomi og revisionsrisiko")
-
-# -----------------------------
-# Sidebar input
-# -----------------------------
-st.sidebar.header("Leasingaftale")
-
-bil_model = st.sidebar.text_input("Bilmodel", "VW Golf 8 R")
-anskaffelsespris = st.sidebar.number_input("Anskaffelsespris inkl. afgift", min_value=0, value=420000, step=10000)
-førstegangsydelse = st.sidebar.number_input("Førstegangsydelse", min_value=0, value=35000, step=5000)
-månedlig_ydelse = st.sidebar.number_input("Månedlig leasingydelse", min_value=0, value=4995, step=250)
-løbetid = st.sidebar.slider("Løbetid i måneder", 3, 60, 12)
-fastsat_restværdi = st.sidebar.number_input("Fastsat restværdi i aftalen", min_value=0, value=300000, step=10000)
-
-st.sidebar.header("Markedsforudsætninger")
-
-markedspris_i_dag = st.sidebar.number_input("Aktuel markedspris for sammenlignelige biler", min_value=0, value=390000, step=10000)
-årligt_værditab_pct = st.sidebar.slider("Forventet årligt værditab (%)", 0.0, 40.0, 15.0, 0.5)
-km_pr_år = st.sidebar.number_input("Forventet km pr. år", min_value=0, value=20000, step=1000)
-stand_score = st.sidebar.slider("Bilens forventede stand ved udløb", 1, 10, 7)
-
-st.sidebar.header("Revisorjusteringer")
-
-markedsusikkerhed_pct = st.sidebar.slider("Markedsusikkerhed / buffer (%)", 0.0, 30.0, 10.0, 0.5)
-elbilsrisiko = st.sidebar.selectbox("Teknologisk/markedsmæssig risiko", ["Lav", "Middel", "Høj"])
-dokumentation = st.sidebar.selectbox("Dokumentation for restværdi", ["Stærk", "Middel", "Svag"])
+st.title("Revisorværktøj til vurdering af leasingrestværdi")
+st.caption("Prototype til cand.merc.aud-speciale: restværdi, leasingøkonomi, skøn og revisionsrisiko")
 
 # -----------------------------
-# Beregninger
+# INPUT
 # -----------------------------
+st.sidebar.header("1. Leasingaftale")
 
+bilmodel = st.sidebar.text_input("Bilmodel", "VW Golf 8 R")
+anskaffelsespris = st.sidebar.number_input("Anskaffelsespris", value=420000, step=10000)
+førstegangsydelse = st.sidebar.number_input("Førstegangsydelse", value=35000, step=5000)
+månedlig_ydelse = st.sidebar.number_input("Månedlig ydelse", value=4995, step=250)
+løbetid = st.sidebar.slider("Løbetid i måneder", 6, 60, 12)
+aftalt_restværdi = st.sidebar.number_input("Aftalt restværdi", value=300000, step=10000)
+
+st.sidebar.header("2. Markedsdata og skøn")
+
+markedspris = st.sidebar.number_input("Markedspris i dag", value=390000, step=10000)
+årligt_værditab = st.sidebar.slider("Forventet årligt værditab (%)", 0.0, 40.0, 15.0, 0.5)
+km_pr_år = st.sidebar.number_input("Forventet km pr. år", value=20000, step=1000)
+stand = st.sidebar.slider("Forventet stand ved udløb", 1, 10, 7)
+buffer = st.sidebar.slider("Forsigtighedsbuffer (%)", 0.0, 30.0, 10.0, 0.5)
+
+st.sidebar.header("3. Revisionsforhold")
+
+dokumentation = st.sidebar.selectbox(
+    "Dokumentation for restværdi",
+    ["Stærk", "Middel", "Svag"]
+)
+
+marked = st.sidebar.selectbox(
+    "Markedssituation",
+    ["Stabilt", "Usikkert", "Meget usikkert"]
+)
+
+ledelsesskøn = st.sidebar.selectbox(
+    "Ledelsens skøn virker",
+    ["Konservativt", "Rimeligt", "Optimistisk"]
+)
+
+# -----------------------------
+# BEREGNINGER
+# -----------------------------
 løbetid_år = løbetid / 12
 
-forventet_restværdi = markedspris_i_dag * ((1 - årligt_værditab_pct / 100) ** løbetid_år)
+model_restværdi = markedspris * ((1 - årligt_værditab / 100) ** løbetid_år)
 
-# km justering
+# km-justering
 normal_km = 20000
 km_afvigelse = km_pr_år - normal_km
 km_justering = -(km_afvigelse / 1000) * 1500 * løbetid_år
 
-# stand justering
-stand_justering = (stand_score - 7) * 5000
+# stand-justering
+stand_justering = (stand - 7) * 5000
 
-justeret_restværdi = forventet_restværdi + km_justering + stand_justering
+justeret_restværdi = model_restværdi + km_justering + stand_justering
+forsigtig_restværdi = justeret_restværdi * (1 - buffer / 100)
 
-forsigtig_restværdi = justeret_restværdi * (1 - markedsusikkerhed_pct / 100)
-
-afvigelse = fastsat_restværdi - forsigtig_restværdi
-afvigelse_pct = afvigelse / forsigtig_restværdi * 100 if forsigtig_restværdi != 0 else 0
+afvigelse = aftalt_restværdi - forsigtig_restværdi
+afvigelse_pct = (afvigelse / forsigtig_restværdi * 100) if forsigtig_restværdi else 0
 
 samlede_ydelser = førstegangsydelse + månedlig_ydelse * løbetid
-samlet_kontraktværdi = samlede_ydelser + fastsat_restværdi
+samlet_leasingøkonomi = samlede_ydelser + aftalt_restværdi
 
-# Risiko score
+# Risiko-score
 risiko_score = 0
 
-if afvigelse_pct > 15:
+if afvigelse_pct > 20:
+    risiko_score += 4
+elif afvigelse_pct > 10:
     risiko_score += 3
-elif afvigelse_pct > 7:
+elif afvigelse_pct > 5:
     risiko_score += 2
 elif afvigelse_pct > 0:
-    risiko_score += 1
-
-if elbilsrisiko == "Høj":
-    risiko_score += 2
-elif elbilsrisiko == "Middel":
     risiko_score += 1
 
 if dokumentation == "Svag":
@@ -81,149 +88,289 @@ if dokumentation == "Svag":
 elif dokumentation == "Middel":
     risiko_score += 1
 
-if risiko_score >= 6:
-    risiko_niveau = "Høj"
-elif risiko_score >= 3:
-    risiko_niveau = "Middel"
+if marked == "Meget usikkert":
+    risiko_score += 3
+elif marked == "Usikkert":
+    risiko_score += 1
+
+if ledelsesskøn == "Optimistisk":
+    risiko_score += 2
+elif ledelsesskøn == "Konservativt":
+    risiko_score -= 1
+
+if risiko_score >= 7:
+    risikoniveau = "Høj"
+elif risiko_score >= 4:
+    risikoniveau = "Middel"
 else:
-    risiko_niveau = "Lav"
+    risikoniveau = "Lav"
 
 # -----------------------------
-# Output
+# TABS
 # -----------------------------
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "Overblik",
+    "Restværdi",
+    "Scenarier",
+    "Revisorvurdering",
+    "Bilag / rapport"
+])
 
-col1, col2, col3, col4 = st.columns(4)
+# -----------------------------
+# TAB 1
+# -----------------------------
+with tab1:
+    st.subheader("Overblik")
 
-col1.metric("Fastsat restværdi", f"{fastsat_restværdi:,.0f} kr.".replace(",", "."))
-col2.metric("Forsigtig beregnet restværdi", f"{forsigtig_restværdi:,.0f} kr.".replace(",", "."))
-col3.metric("Afvigelse", f"{afvigelse:,.0f} kr.".replace(",", "."))
-col4.metric("Revisionsrisiko", risiko_niveau)
+    c1, c2, c3, c4 = st.columns(4)
 
-st.divider()
+    c1.metric("Aftalt restværdi", f"{aftalt_restværdi:,.0f} kr.".replace(",", "."))
+    c2.metric("Forsigtig restværdi", f"{forsigtig_restværdi:,.0f} kr.".replace(",", "."))
+    c3.metric("Afvigelse", f"{afvigelse:,.0f} kr.".replace(",", "."))
+    c4.metric("Revisionsrisiko", risikoniveau)
 
-st.subheader("Restværdiberegning")
+    st.write("### Kort fortolkning")
 
-beregning_df = pd.DataFrame({
-    "Element": [
-        "Aktuel markedspris",
-        "Forventet restværdi før justering",
-        "Km-justering",
-        "Stand-justering",
-        "Justeret restværdi",
-        "Forsigtighedsbuffer",
-        "Forsigtig restværdi",
-        "Fastsat restværdi",
-        "Afvigelse"
-    ],
-    "Beløb": [
-        markedspris_i_dag,
-        forventet_restværdi,
-        km_justering,
-        stand_justering,
-        justeret_restværdi,
-        -justeret_restværdi * markedsusikkerhed_pct / 100,
-        forsigtig_restværdi,
-        fastsat_restværdi,
-        afvigelse
-    ]
-})
+    if risikoniveau == "Høj":
+        st.error("Restværdien vurderes som højrisiko. Revisor bør udføre udvidede revisionshandlinger.")
+    elif risikoniveau == "Middel":
+        st.warning("Restværdien vurderes som moderat risikofyldt. Revisor bør indhente yderligere dokumentation.")
+    else:
+        st.success("Restværdien vurderes umiddelbart som rimelig ud fra de indtastede forudsætninger.")
 
-st.dataframe(beregning_df, use_container_width=True, hide_index=True)
+    st.write("### Leasingøkonomi")
 
-st.subheader("Følsomhedsanalyse")
+    økonomi_df = pd.DataFrame({
+        "Post": [
+            "Førstegangsydelse",
+            "Månedlige ydelser i alt",
+            "Samlede leasingydelser",
+            "Aftalt restværdi",
+            "Samlet økonomisk eksponering"
+        ],
+        "Beløb": [
+            førstegangsydelse,
+            månedlig_ydelse * løbetid,
+            samlede_ydelser,
+            aftalt_restværdi,
+            samlet_leasingøkonomi
+        ]
+    })
 
-scenarier = []
+    st.dataframe(økonomi_df, use_container_width=True, hide_index=True)
 
-for værditab in [årligt_værditab_pct - 5, årligt_værditab_pct, årligt_værditab_pct + 5]:
-    for buffer in [5, 10, 15, 20]:
-        rv = markedspris_i_dag * ((1 - værditab / 100) ** løbetid_år)
-        rv = rv + km_justering + stand_justering
-        rv_forsigtig = rv * (1 - buffer / 100)
-        scenarier.append({
-            "Årligt værditab": f"{værditab:.1f}%",
-            "Buffer": f"{buffer}%",
-            "Beregnet restværdi": round(rv_forsigtig, 0),
-            "Afvigelse ift. aftale": round(fastsat_restværdi - rv_forsigtig, 0)
+# -----------------------------
+# TAB 2
+# -----------------------------
+with tab2:
+    st.subheader("Restværdiberegning")
+
+    rest_df = pd.DataFrame({
+        "Element": [
+            "Markedspris i dag",
+            "Modelberegnet restværdi før justering",
+            "Km-justering",
+            "Stand-justering",
+            "Justeret restværdi",
+            "Forsigtighedsbuffer",
+            "Forsigtig beregnet restværdi",
+            "Aftalt restværdi",
+            "Afvigelse"
+        ],
+        "Beløb": [
+            markedspris,
+            model_restværdi,
+            km_justering,
+            stand_justering,
+            justeret_restværdi,
+            -(justeret_restværdi * buffer / 100),
+            forsigtig_restværdi,
+            aftalt_restværdi,
+            afvigelse
+        ]
+    })
+
+    st.dataframe(rest_df, use_container_width=True, hide_index=True)
+
+    st.write("### Værdifald over leasingperioden")
+
+    udvikling = []
+    for måned in range(0, løbetid + 1):
+        år = måned / 12
+        værdi = markedspris * ((1 - årligt_værditab / 100) ** år)
+        udvikling.append({
+            "Måned": måned,
+            "Forventet markedsværdi": værdi
         })
 
-scenarie_df = pd.DataFrame(scenarier)
-st.dataframe(scenarie_df, use_container_width=True, hide_index=True)
-
-st.subheader("Revisorens vurdering")
-
-if risiko_niveau == "Høj":
-    konklusion = f"""
-Restværdien vurderes som væsentligt risikofyldt. Den fastsatte restværdi på {fastsat_restværdi:,.0f} kr. 
-overstiger den forsigtige beregnede restværdi på {forsigtig_restværdi:,.0f} kr. med {afvigelse:,.0f} kr.
-
-Dette kan indikere risiko for overvurdering af aktivet/restværdien og bør give anledning til yderligere revisionshandlinger.
-Revisor bør indhente ekstern markedsdokumentation, sammenligne med konkrete annoncer/salgspriser og vurdere behovet for nedskrivning eller noteoplysning.
-"""
-elif risiko_niveau == "Middel":
-    konklusion = f"""
-Restværdien vurderes at have moderat revisionsrisiko. Der er en afvigelse mellem aftalens restværdi og den forsigtige modelberegning.
-
-Revisor bør udføre supplerende substanshandlinger, herunder sammenholde restværdien med markedsdata, historiske realiserede restværdier og bilens forventede stand/kilometer.
-"""
-else:
-    konklusion = f"""
-Restværdien vurderes umiddelbart som rimelig i forhold til de indtastede forudsætninger.
-
-Revisor bør dog stadig dokumentere vurderingen, herunder anvendte markedsdata, værditabsforudsætninger og eventuelle usikkerheder.
-"""
-
-st.write(konklusion)
-
-st.subheader("Forslag til revisionshandlinger")
-
-handlinger = [
-    "Indhent sammenlignelige markedspriser fra Bilbasen, Mobile.de eller interne salgsdata.",
-    "Sammenhold fastsat restværdi med historiske realiserede salgspriser.",
-    "Vurder om kilometerstand og bilens stand er realistisk indregnet.",
-    "Lav følsomhedsanalyse på værditab, markedspris og restværdi.",
-    "Vurder om der foreligger indikation på nedskrivningsbehov.",
-    "Dokumentér væsentlige skøn og ledelsens forudsætninger.",
-    "Overvej om usikkerheden skal kommunikeres til ledelsen eller i revisionsprotokollen."
-]
-
-for h in handlinger:
-    st.checkbox(h)
+    udvikling_df = pd.DataFrame(udvikling)
+    st.line_chart(udvikling_df, x="Måned", y="Forventet markedsværdi")
 
 # -----------------------------
-# Eksport
+# TAB 3
 # -----------------------------
+with tab3:
+    st.subheader("Scenarieanalyse")
 
-rapport = f"""
-REVISIONSNOTAT - LEASING RESTVÆRDI
+    scenarier = []
+
+    for scenarie, ekstra_værditab, ekstra_buffer in [
+        ("Optimistisk", -5, 5),
+        ("Basis", 0, buffer),
+        ("Forsigtig", 5, 15),
+        ("Stress-test", 10, 25),
+    ]:
+        værditab_scenarie = max(0, årligt_værditab + ekstra_værditab)
+        rv = markedspris * ((1 - værditab_scenarie / 100) ** løbetid_år)
+        rv = rv + km_justering + stand_justering
+        rv = rv * (1 - ekstra_buffer / 100)
+
+        scenarier.append({
+            "Scenarie": scenarie,
+            "Årligt værditab": f"{værditab_scenarie:.1f}%",
+            "Buffer": f"{ekstra_buffer:.1f}%",
+            "Beregnet restværdi": round(rv, 0),
+            "Afvigelse ift. aftale": round(aftalt_restværdi - rv, 0)
+        })
+
+    scenarie_df = pd.DataFrame(scenarier)
+    st.dataframe(scenarie_df, use_container_width=True, hide_index=True)
+
+    st.write("### Revisorens brug af scenarier")
+    st.write("""
+    Scenarieanalysen kan bruges til at vurdere, hvor følsom restværdien er over for ændringer i markedspris,
+    værditab og forsigtighedsbuffer. Hvis restværdien kun fremstår rimelig i det optimistiske scenarie,
+    kan det indikere øget risiko ved ledelsens skøn.
+    """)
+
+# -----------------------------
+# TAB 4
+# -----------------------------
+with tab4:
+    st.subheader("Revisorvurdering")
+
+    st.write("### ISA-kobling")
+
+    isa_df = pd.DataFrame({
+        "Standard": [
+            "ISA 315",
+            "ISA 540",
+            "ISA 500",
+            "ISA 570"
+        ],
+        "Relevans": [
+            "Identifikation og vurdering af risici for væsentlig fejlinformation.",
+            "Revision af regnskabsmæssige skøn, herunder restværdier.",
+            "Revisionsbevis for markedsdata, dokumentation og forudsætninger.",
+            "Going concern kan være relevant, hvis fejlvurderede restværdier påvirker likviditet og kapitalgrundlag."
+        ]
+    })
+
+    st.dataframe(isa_df, use_container_width=True, hide_index=True)
+
+    st.write("### Automatisk revisionskonklusion")
+
+    if risikoniveau == "Høj":
+        konklusion = f"""
+        Den aftalte restværdi vurderes at indebære høj revisionsrisiko. Den aftalte restværdi på 
+        {aftalt_restværdi:,.0f} kr. overstiger den forsigtige modelberegnede restværdi på 
+        {forsigtig_restværdi:,.0f} kr. med {afvigelse:,.0f} kr.
+
+        Afvigelsen kan indikere, at ledelsens skøn er optimistisk, og at der kan være risiko for overvurdering.
+        Revisor bør derfor udføre udvidede revisionshandlinger, herunder indhentelse af ekstern markedsdokumentation,
+        følsomhedsanalyse og vurdering af behov for nedskrivning eller yderligere noteoplysninger.
+        """
+        st.error(konklusion)
+
+    elif risikoniveau == "Middel":
+        konklusion = f"""
+        Den aftalte restværdi vurderes at indebære moderat revisionsrisiko. Der er en afvigelse mellem 
+        den aftalte restværdi og den forsigtige modelberegning.
+
+        Revisor bør indhente supplerende dokumentation, sammenholde restværdien med markedsdata og vurdere,
+        om ledelsens forudsætninger er rimelige.
+        """
+        st.warning(konklusion)
+
+    else:
+        konklusion = f"""
+        Den aftalte restværdi vurderes umiddelbart som rimelig i forhold til de indtastede forudsætninger.
+        Revisor bør dog fortsat dokumentere de anvendte markedsdata og ledelsens centrale forudsætninger.
+        """
+        st.success(konklusion)
+
+    st.write("### Foreslåede revisionshandlinger")
+
+    handlinger = [
+        "Indhent sammenlignelige markedspriser fra Bilbasen, Mobile.de eller interne salgsdata.",
+        "Sammenhold aftalt restværdi med historisk realiserede restværdier.",
+        "Vurder om kilometerstand og bilens stand er realistisk indregnet.",
+        "Udfør følsomhedsanalyse på værditab, markedspris og restværdi.",
+        "Vurder om der er indikation på nedskrivningsbehov.",
+        "Dokumentér ledelsens forudsætninger og revisorens vurdering.",
+        "Overvej kommunikation til ledelsen eller revisionsprotokollen ved væsentlig usikkerhed."
+    ]
+
+    for h in handlinger:
+        st.checkbox(h)
+
+# -----------------------------
+# TAB 5
+# -----------------------------
+with tab5:
+    st.subheader("Bilag / revisionsnotat")
+
+    rapport = f"""
+REVISIONSNOTAT - VURDERING AF LEASINGRESTVÆRDI
 
 Dato: {date.today()}
-Bilmodel: {bil_model}
+Bilmodel: {bilmodel}
 
-Fastsat restværdi: {fastsat_restværdi:,.0f} kr.
+1. Leasingaftale
+Anskaffelsespris: {anskaffelsespris:,.0f} kr.
+Førstegangsydelse: {førstegangsydelse:,.0f} kr.
+Månedlig ydelse: {månedlig_ydelse:,.0f} kr.
+Løbetid: {løbetid} måneder
+Aftalt restværdi: {aftalt_restværdi:,.0f} kr.
+
+2. Modelberegning
+Markedspris i dag: {markedspris:,.0f} kr.
+Forventet årligt værditab: {årligt_værditab:.1f}%
+Km pr. år: {km_pr_år:,.0f}
+Standscore: {stand}/10
+Forsigtighedsbuffer: {buffer:.1f}%
+
+Modelberegnet restværdi før justering: {model_restværdi:,.0f} kr.
+Justeret restværdi: {justeret_restværdi:,.0f} kr.
 Forsigtig beregnet restværdi: {forsigtig_restværdi:,.0f} kr.
 Afvigelse: {afvigelse:,.0f} kr.
 Afvigelse i procent: {afvigelse_pct:.2f}%
 
-Samlede leasingydelser: {samlede_ydelser:,.0f} kr.
-Samlet kontraktværdi inkl. restværdi: {samlet_kontraktværdi:,.0f} kr.
+3. Revisionsmæssig vurdering
+Risikoniveau: {risikoniveau}
+Dokumentation: {dokumentation}
+Markedssituation: {marked}
+Ledelsens skøn: {ledelsesskøn}
 
-Risikoniveau: {risiko_niveau}
-
-Revisorens vurdering:
+4. Revisorens konklusion
 {konklusion}
 
-Væsentlige forudsætninger:
-- Årligt værditab: {årligt_værditab_pct}%
-- Løbetid: {løbetid} måneder
-- Km pr. år: {km_pr_år}
-- Standscore: {stand_score}/10
-- Markedsusikkerhed: {markedsusikkerhed_pct}%
-- Dokumentation: {dokumentation}
+5. Foreslåede revisionshandlinger
+- Indhent eksterne markedsdata.
+- Sammenhold med historiske realiserede salgspriser.
+- Udfør følsomhedsanalyse.
+- Vurder behov for nedskrivning eller noteoplysning.
+- Dokumentér vurderingen som led i revisionen af regnskabsmæssige skøn.
+
+Bemærkning:
+Denne prototype er udarbejdet som et analytisk værktøj til specialeformål og kan ikke erstatte en egentlig revisionsmæssig vurdering.
 """
 
-st.download_button(
-    label="Download revisionsnotat",
-    data=rapport,
-    file_name="leasing_restvaerdi_revisionsnotat.txt",
-    mime="text/plain"
-)
+    st.text_area("Revisionsnotat", rapport, height=500)
+
+    st.download_button(
+        label="Download revisionsnotat",
+        data=rapport,
+        file_name="revisionsnotat_leasing_restvaerdi.txt",
+        mime="text/plain"
+    )
