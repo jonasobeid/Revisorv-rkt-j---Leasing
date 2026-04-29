@@ -1,0 +1,12 @@
+import streamlit as st
+
+st.title("Min første leasing app")
+
+st.write("Den virker 🔥")
+
+bilpris = st.number_input("Bilpris", value=400000)
+restværdi = st.number_input("Restværdi", value=300000)
+
+if bilpris > 0:
+    afskrivning = bilpris - restværdi
+    st.write(f"Afskrivning: {afskrivning} kr.")
